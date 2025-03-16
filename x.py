@@ -23,19 +23,27 @@ from io import BytesIO
 def init_groq_model():
     groq_api_key = os.getenv('GROQ_API_KEY')
     if not groq_api_key:
-        raise ValueError("GROQ_API_KEY not found in environment variables.")
-    return ChatGroq(
-        groq_api_key=groq_api_key, 
-        model_name="llama-3.3-70b-versatile",
-        temperature=0.2
-    )
+        st.error("GROQ_API_KEY not found in environment variables. Please set it in Streamlit Cloud secrets.")
+        raise ValueError("GROQ_API_KEY not found")
+    try:
+        # Explicitly initialize Groq client first to test
+        groq_client = Groq(api_key=groq_api_key)
+        st.write("Groq client initialized successfully")
+        # Then pass to ChatGroq
+        return ChatGroq(
+            api_key=groq_api_key,  # Changed to 'api_key' to match groq.Client expectation
+            model="llama-3.3-70b-versatile",  # Changed 'model_name' to 'model'
+            temperature=0.2
+        )
+    except Exception as e:
+        st.error(f"Failed to initialize Groq model: {str(e)}")
+        raise
 
 # Load Grok model
 if "llm_groq" not in st.session_state:
     try:
         st.session_state["llm_groq"] = init_groq_model()
     except ValueError as e:
-        st.error(str(e))
         st.stop()
 
 llm_groq = st.session_state["llm_groq"]
@@ -224,7 +232,7 @@ def summarize_text(text, min_chunk_length=200):
             summary += response.content.strip() + " "
         except Exception as e:
             st.error(f"Error summarizing chunk: {e}")
-            return None  # Return None to indicate failure
+            return None
     return summary.strip()
 
 def analyze_sentiment(text):
@@ -239,7 +247,6 @@ def text_to_speech_gtts(text, sentiment_adjustment=False):
         else:
             speech_rate = 'normal'
         
-        # Generate audio in memory
         tts = gTTS(text=text, lang='en', slow=(speech_rate == 'slow'))
         audio_buffer = BytesIO()
         tts.write_to_fp(audio_buffer)
@@ -259,7 +266,9 @@ def enhance_podcast_text(text):
     first_half = " ".join(words[:mid_point])
     second_half = " ".join(words[mid_point:])
     
-    return f"{greeting} {first_half} {middle} {second_half} {closing}"
+    return f"{greeting}
+
+ {first_half} {middle} {second_half} {closing}"
 
 # Streamlit App
 st.title("📚 Research Paper Management and Chatbot")
@@ -538,12 +547,12 @@ else:
         st.write("Convert your research paper into an audio podcast!")
         summarize = st.checkbox("Summarize the paper before conversion")
         sentiment_adjustment = st.checkbox("Adjust voice tone based on sentiment")
-        min_duration = st.slider("Minimum podcast duration (minutes):", 1, 5, 2)  # Reduced max to 5 for Streamlit Cloud
+        min_duration = st.slider("Minimum podcast duration (minutes):", 1, 5, 2)
         
         if st.button("Generate Podcast"):
             with st.spinner("Processing text..."):
                 st.write("Step 1: Extracting text...")
-                text_to_convert = paper_text[:2000]  # Limit to 2000 chars to avoid resource issues
+                text_to_convert = paper_text[:2000]
                 st.write(f"Text length: {len(text_to_convert)} characters")
 
                 if summarize:
@@ -551,11 +560,10 @@ else:
                         st.write("Step 2: Summarizing text...")
                         text_to_convert = summarize_text(text_to_convert)
                         if text_to_convert is None:
-                            st.error("Summarization failed. Check Grok API or text content.")
+                            st.error("Summarization failed.")
                             st.stop()
                         st.write(f"Summary length: {len(text_to_convert)} characters")
 
-                # Ensure minimum length (approx 120 words/minute)
                 min_words = min_duration * 120
                 st.write(f"Step 3: Checking length (target {min_words} words)...")
                 if len(text_to_convert.split()) < min_words:
@@ -566,17 +574,15 @@ else:
                         text_to_convert = response.content.strip()
                         st.write(f"Expanded length: {len(text_to_convert.split())} words")
 
-                # Add polite expressions
                 st.write("Step 4: Enhancing text with greetings...")
                 enhanced_text = enhance_podcast_text(text_to_convert)
                 st.write(f"Final text length: {len(enhanced_text.split())} words")
 
-                # Generate audio
                 with st.spinner("Generating podcast audio..."):
                     st.write("Step 5: Converting to audio...")
                     audio_buffer = text_to_speech_gtts(enhanced_text, sentiment_adjustment=sentiment_adjustment)
                     if audio_buffer is None:
-                        st.error("Audio generation failed. Check gTTS or text length.")
+                        st.error("Audio generation failed.")
                         st.stop()
                     st.success("Podcast generated successfully!")
                     st.audio(audio_buffer, format="audio/mp3")
