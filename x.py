@@ -267,7 +267,6 @@ def enhance_podcast_text(text):
     second_half = " ".join(words[mid_point:])
     
     return f"{greeting}
-
  {first_half} {middle} {second_half} {closing}"
 
 # Streamlit App
