@@ -26,13 +26,11 @@ def init_groq_model():
         st.error("GROQ_API_KEY not found in environment variables. Please set it in Streamlit Cloud secrets.")
         raise ValueError("GROQ_API_KEY not found")
     try:
-        # Explicitly initialize Groq client first to test
         groq_client = Groq(api_key=groq_api_key)
         st.write("Groq client initialized successfully")
-        # Then pass to ChatGroq
         return ChatGroq(
-            api_key=groq_api_key,  # Changed to 'api_key' to match groq.Client expectation
-            model="llama-3.3-70b-versatile",  # Changed 'model_name' to 'model'
+            api_key=groq_api_key,
+            model="llama-3.3-70b-versatile",
             temperature=0.2
         )
     except Exception as e:
@@ -266,8 +264,10 @@ def enhance_podcast_text(text):
     first_half = " ".join(words[:mid_point])
     second_half = " ".join(words[mid_point:])
     
-    return f"{greeting}
- {first_half} {middle} {second_half} {closing}"
+    # Fixed: Use multi-line f-string with parentheses
+    return (
+        f"{greeting} {first_half} {middle} {second_half} {closing}"
+    )
 
 # Streamlit App
 st.title("📚 Research Paper Management and Chatbot")
