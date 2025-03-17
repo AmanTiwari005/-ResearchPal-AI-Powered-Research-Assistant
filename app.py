@@ -58,38 +58,74 @@ def extract_text_from_pdf(uploaded_file):
 
 # Function to split text into paragraphs
 def split_into_paragraphs(text):
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
-    paragraphs = []
-    current_paragraph = ""
-    for line in lines:
-        if line.endswith(".") or line.endswith(":") or line.endswith("!"):
-            current_paragraph += " " + line
-            paragraphs.append(current_paragraph.strip())
-            current_paragraph = ""
-        else:
-            current_paragraph += " " + line
-    if current_paragraph:
-        paragraphs.append(current_paragraph.strip())
-    return paragraphs
+    cleaned_text = re.sub(r'\s*\n\s*', '\n', text.strip())
+    cleaned_text = re.sub(r'(\.\s*\n)', '.\n\n', cleaned_text)
+    paragraphs = [p.strip() for p in cleaned_text.split('\n\n') if p.strip() and len(p.strip()) > 10]
+    return paragraphs if paragraphs else [text[:1000]]
 
-# Function to search for keywords in the paper
+# Function to search for keywords in the paper with context
 def search_keywords(paper_text, query):
+    if not query or not paper_text:
+        return []
+    
     paragraphs = split_into_paragraphs(paper_text)
     matches = []
+    query = query.strip()
+    query_words = query.split()
+    pattern = r'\b' + re.escape(query) + r'\b'
+    
     for i, paragraph in enumerate(paragraphs):
-        if re.search(re.escape(query), paragraph, re.IGNORECASE):
+        if re.search(pattern, paragraph, re.IGNORECASE):
             matches.append((i, paragraph))
+        elif len(query_words) > 1:
+            if all(re.search(r'\b' + re.escape(word) + r'\b', paragraph, re.IGNORECASE) for word in query_words):
+                matches.append((i, paragraph))
+    
     return matches
 
-# Function to highlight keywords in the text
-def highlight_keywords(text, query):
-    highlighted_text = re.sub(
-        f"({re.escape(query)})", 
-        r"**\1**", 
-        text, 
-        flags=re.IGNORECASE
-    )
-    return highlighted_text
+# Function to highlight keywords and provide larger context
+def highlight_keywords(text, query, context_size=500):
+    match = re.search(r'\b' + re.escape(query) + r'\b', text, re.IGNORECASE)
+    if match:
+        start = max(0, match.start() - context_size)
+        end = min(len(text), match.end() + context_size)
+        snippet = text[start:end]
+        highlighted = re.sub(
+            r'\b' + re.escape(query) + r'\b',
+            r"**\g<0>**",
+            snippet,
+            flags=re.IGNORECASE
+        )
+        return "..." + highlighted + "..." if start > 0 or end < len(text) else highlighted
+    return text
+
+# Function to count keyword frequency
+def count_keyword_frequency(paper_text, query):
+    pattern = r'\b' + re.escape(query) + r'\b'
+    return len(re.findall(pattern, paper_text, re.IGNORECASE))
+
+# Updated function to suggest similar terms with error handling
+def suggest_similar_terms(query):
+    try:
+        response = llm_groq.invoke(
+            f"Given the keyword '{query}', suggest 5 related terms for a research paper context. Return each term on a new line."
+        )
+        terms = response.content.strip().split('\n')[:5]
+        valid_terms = [term.strip() for term in terms if term.strip()]
+        if not valid_terms:
+            raise ValueError("No valid terms returned from Grok.")
+        return valid_terms
+    except Exception as e:
+        st.warning(f"Failed to fetch similar terms: {str(e)}. Using fallback terms.")
+        # Fallback terms based on common research themes
+        fallback = {
+            "machine learning": ["deep learning", "neural networks", "artificial intelligence", "data mining", "pattern recognition"],
+            "data": ["big data", "data analysis", "statistics", "information", "database"],
+        }
+        return fallback.get(query.lower(), ["term1", "term2", "term3", "term4", "term5"])[:5]
+
+
+
 
 # Function to extract DOI or title
 def extract_metadata_identifiers(paper_text):
@@ -288,19 +324,50 @@ else:
     paper_text = st.session_state["paper_text"]
 
     # 1. Research Paper Discovery
+    # Enhanced Research Paper Discovery Section with Fixed Similar Terms
     if options == "🔍 Research Paper Discovery":
         st.header("🔍 Research Paper Discovery")
         query = st.text_input("Enter keywords to search within your paper:")
         if query:
             with st.spinner("Searching within your paper..."):
                 matches = search_keywords(paper_text, query)
+                frequency = count_keyword_frequency(paper_text, query)
+                
+                # Display frequency
+                st.write(f"**Keyword '{query}' appears {frequency} times in the document.**")
+                
                 if matches:
-                    st.write(f"**Found {len(matches)} matches for '{query}':**")
-                    for i, (para_num, paragraph) in enumerate(matches):
+                    st.write(f"**Found {len(matches)} paragraph matches for '{query}':**")
+                    for i, (para_num, paragraph) in enumerate(matches[:20]):
                         st.write(f"**Match {i + 1} (Paragraph {para_num + 1}):**")
-                        st.write(highlight_keywords(paragraph, query))
+                        st.markdown(highlight_keywords(paragraph, query), unsafe_allow_html=True)
+                    if len(matches) > 20:
+                        st.info(f"Showing first 20 of {len(matches)} matches. Refine your query for more specific results.")
+                    
+                    # Export option
+                    if st.button("Export Search Results"):
+                        export_data = export_matches(matches, query)
+                        st.download_button(
+                            label="Download Results",
+                            data=export_data,
+                            file_name=f"search_results_{query}.txt",
+                            mime="text/plain"
+                        )
                 else:
-                    st.warning(f"No matches found for '{query}'.")
+                    st.warning(f"No paragraph matches found for '{query}'. Try different keywords or check the paper content.")
+                    st.write("**Sample of extracted text (first 500 chars):**", paper_text[:500])
+                
+                # Suggest similar terms with debugging
+                with st.expander("Explore Similar Terms"):
+                    st.write("**Suggested related terms:**")
+                    similar_terms = suggest_similar_terms(query)
+                    if similar_terms:
+                        for term in similar_terms:
+                            if st.button(term, key=term):
+                                st.session_state["query"] = term
+                                st.experimental_rerun()
+                    else:
+                        st.error("No similar terms available.")
 
     # 2. Interactive Chatbot
     elif options == "💬 Interactive Chatbot":
