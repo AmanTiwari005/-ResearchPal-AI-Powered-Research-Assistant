@@ -784,7 +784,7 @@ else:
                 st.write("**Suggested References (APA):**")
                 for sug in initial_suggestions:
                     st.write(f"- {sug}")
-
+        
         if st.session_state.get("generated_titles"):
             num_more = st.number_input("Generate more references:", min_value=1, max_value=10, value=5)
             if st.button("Generate Additional References"):
@@ -792,7 +792,7 @@ else:
                     additional_suggestions = suggest_references(paper_text, offset=len(st.session_state["generated_titles"]) // 2, limit=num_more)
                     new_titles = set(s.split(". ")[1] for s in additional_suggestions if len(s.split(". ")) > 1)
                     st.session_state["generated_titles"] = st.session_state["generated_titles"].union(new_titles)
-                   58                    st.write(f"**Additional References (APA):**")
+                    st.write(f"**Additional References (APA):**")
                     for sug in additional_suggestions:
                         st.write(f"- {sug}")
 
