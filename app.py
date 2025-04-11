@@ -14,7 +14,12 @@ import PyPDF2
 import io
 import torch
 from collections import Counter
-from wordcloud import WordCloud
+try:
+    from wordcloud import WordCloud
+    WORDCLOUD_AVAILABLE = True
+except ImportError:
+    WORDCLOUD_AVAILABLE = False
+    st.warning("WordCloud library not available. Word cloud visualizations will be skipped.")
 from textblob import TextBlob
 from gtts import gTTS
 from io import BytesIO
@@ -29,7 +34,7 @@ import plotly.graph_objects as go
 import networkx as nx
 from datetime import datetime, timedelta
 import nbformat as nbf
-import huggingface_hub  # For managing model downloads
+import huggingface_hub
 
 # Initialize GROQ chat model
 def init_groq_model():
@@ -65,7 +70,6 @@ except Exception as e:
     st.stop()
 
 try:
-    # Cache SentenceTransformer model locally and handle interruptions
     with st.spinner("Loading SentenceTransformer model (this may take a moment)..."):
         model = SentenceTransformer('all-MiniLM-L6-v2', device=device, cache_folder="./model_cache")
     st.success("SentenceTransformer model loaded successfully!")
@@ -521,7 +525,6 @@ else:
                     st.session_state["query"] = term
                     st.experimental_rerun()
 
-        # New: Offline Mode
         st.subheader("Offline Mode")
         cached_text = load_cache("paper_text")
         if cached_text:
@@ -535,7 +538,6 @@ else:
                 else:
                     st.info("No matches found in cached text.")
 
-        # New: Automated Literature Search
         with st.expander("Find Related Papers"):
             lit_query = st.text_input("Enter topic or keywords for literature search:")
             if lit_query and st.button("Search Literature"):
@@ -549,7 +551,6 @@ else:
                     else:
                         st.info("No papers found.")
 
-        # New: Research Gap Analysis
         st.subheader("Research Gap Analysis")
         if st.button("Identify Research Gaps"):
             with st.spinner("Analyzing for gaps..."):
@@ -558,7 +559,6 @@ else:
                 st.write("**Research Gaps:**")
                 st.markdown(response.content.strip())
 
-        # New: Paper Sharing Hub
         st.subheader("Share Paper Summary")
         if st.button("Generate Shareable Summary"):
             with st.spinner("Creating summary..."):
@@ -572,7 +572,6 @@ else:
                 else:
                     st.error("Failed to generate summary.")
 
-        # New: Q&A Forum Integration
         st.subheader("Community Q&A")
         forum_query = st.text_input("Search for related discussions:")
         if forum_query and st.button("Search Forums"):
@@ -663,7 +662,6 @@ else:
                     st.write("**Paraphrased Text:**")
                     st.write(response.content.strip())
 
-        # New: Abstract Generator
         elif task == "📄 Abstract Generator":
             st.subheader("Abstract Generator")
             tone = st.selectbox("Abstract Tone:", ["Concise", "Detailed", "Balanced"])
@@ -676,7 +674,6 @@ else:
                     st.write(abstract)
                     st.download_button("Download Abstract", abstract, "abstract.txt", "text/plain")
 
-        # New: Style and Grammar Checker
         elif task == "🔍 Style and Grammar Checker":
             st.subheader("Style and Grammar Checker")
             input_text = st.text_area("Paste text to check:", value=st.session_state.get("drafted_content", ""))
@@ -696,7 +693,6 @@ else:
                     st.write("**Style Suggestions:**")
                     st.write(response.content.strip())
 
-        # New: Translate Text
         elif task == "🌐 Translate Text":
             st.subheader("Translate Text")
             languages = {"Spanish": "es", "French": "fr", "German": "de"}
@@ -711,7 +707,6 @@ else:
                     else:
                         st.warning("Translation unavailable due to model loading failure.")
 
-        # New: Journal Formatter
         elif task == "📑 Journal Formatter":
             st.subheader("Journal Formatter")
             template = st.selectbox("Journal Template:", ["IEEE", "Springer", "Generic"])
@@ -724,7 +719,6 @@ else:
                     st.write(formatted_text)
                     st.download_button("Download Formatted Paper", formatted_text, f"paper_{template}.txt", "text/plain")
 
-        # New: Peer Review Simulator
         elif task == "🖋️ Peer Review Simulator":
             st.subheader("Peer Review Simulator")
             if st.button("Simulate Peer Review"):
@@ -734,7 +728,6 @@ else:
                     st.write("**Reviewer Feedback:**")
                     st.markdown(response.content.strip())
 
-        # New: Paper Templates
         elif task == "📋 Paper Templates":
             st.subheader("Paper Templates")
             templates = {
@@ -804,7 +797,6 @@ else:
                 for link in links:
                     st.write(f"- {link}")
 
-        # New: Citation Network
         st.subheader("Citation Network")
         if st.button("Visualize Citation Network"):
             with st.spinner("Building citation network..."):
@@ -832,7 +824,6 @@ else:
                 else:
                     st.warning("No DOI found in paper.")
 
-        # New: Journal Matcher
         st.subheader("Journal Matcher")
         if st.button("Find Suitable Journals"):
             with st.spinner("Matching journals..."):
@@ -871,7 +862,6 @@ else:
                         f"Check reproducibility of methods in this paper: {paper_text[:4000]}"
                     )
                     st.write("**Reproducibility Report:**", response.content.strip())
-        # New: Dataset Analysis
         elif task == "📈 Dataset Analysis":
             st.subheader("Dataset Analysis")
             data_file = st.file_uploader("Upload dataset (CSV/Excel):", type=["csv", "xlsx"])
@@ -900,7 +890,6 @@ else:
                                     st.warning("No numeric columns to visualize.")
                         except Exception as e:
                             st.error(f"Failed to load dataset: {e}")
-        # New: Dataset Recommendations
         elif task == "🌐 Dataset Recommendations":
             st.subheader("Dataset Recommendations")
             if st.button("Suggest Datasets"):
@@ -909,7 +898,6 @@ else:
                     response = llm_groq.invoke(prompt)
                     st.write("**Suggested Datasets:**")
                     st.markdown(response.content.strip())
-        # New: Export to Jupyter
         elif task == "📓 Export to Jupyter":
             st.subheader("Export to Jupyter")
             code_task = st.text_input("Describe code to export:")
@@ -956,7 +944,7 @@ else:
                 filtered_words = [word for word in words if word not in stopwords and len(word) > 2]
                 word_counts = Counter(filtered_words).most_common(10)
                 terms, frequencies = zip(*word_counts) if word_counts else (["No terms found"], [1])
-                viz_style = st.radio("Visualization style:", ["Bar Chart", "Word Cloud"], horizontal=True)
+                viz_style = st.radio("Visualization style:", ["Bar Chart", "Word Cloud"] if WORDCLOUD_AVAILABLE else ["Bar Chart"], horizontal=True)
                 if viz_style == "Bar Chart":
                     plt.bar(terms, frequencies, color='coral', edgecolor='black')
                     plt.xlabel("Key Terms")
@@ -965,7 +953,7 @@ else:
                     plt.xticks(rotation=45, ha='right')
                     plt.tight_layout()
                     st.pyplot(plt.gcf())
-                else:
+                elif viz_style == "Word Cloud" and WORDCLOUD_AVAILABLE:
                     if word_counts:
                         wordcloud = WordCloud(width=800, height=400, background_color='white', 
                                             max_words=10, colormap='viridis').generate_from_frequencies(dict(word_counts))
@@ -1019,7 +1007,7 @@ else:
                     st.success("Podcast generated!")
                     st.audio(audio_buffer, format="audio/mp3")
 
-    # New: Dashboard
+    # Dashboard
     elif options == "📈 Dashboard":
         st.header("📈 Research Progress Dashboard")
         metrics = {
