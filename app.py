@@ -78,18 +78,22 @@ except Exception as e:
     st.info("Ensure you have an internet connection and sufficient disk space. The app will exit.")
     st.stop()
 
-# Cache translator model
+# Cache translator model with improved error handling
 @st.cache_resource
 def load_translator(model_name):
     try:
+        import sentencepiece  # Explicitly check for sentencepiece
         return pipeline("translation", model=model_name, device=-1)
+    except ImportError as e:
+        st.error(f"Failed to load translator model: {e}. Please ensure 'sentencepiece' is installed.")
+        return None
     except Exception as e:
         st.error(f"Failed to load translator model: {e}")
         return None
 
 translator = load_translator("Helsinki-NLP/opus-mt-en-es")
 if translator is None:
-    st.warning("Translation feature will be unavailable.")
+    st.warning("Translation feature will be unavailable due to model loading failure.")
 
 # Utility Functions (Existing)
 def extract_text_from_pdf(uploaded_file):
@@ -701,9 +705,12 @@ else:
             if trans_text and st.button("Translate"):
                 with st.spinner("Translating..."):
                     if translator:
-                        result = translator(trans_text[:500], max_length=512)[0]["translation_text"]
-                        st.write("**Translated Text:**")
-                        st.write(result)
+                        try:
+                            result = translator(trans_text[:500], max_length=512)[0]["translation_text"]
+                            st.write("**Translated Text:**")
+                            st.write(result)
+                        except Exception as e:
+                            st.error(f"Translation failed: {e}")
                     else:
                         st.warning("Translation unavailable due to model loading failure.")
 
@@ -785,7 +792,7 @@ else:
                     additional_suggestions = suggest_references(paper_text, offset=len(st.session_state["generated_titles"]) // 2, limit=num_more)
                     new_titles = set(s.split(". ")[1] for s in additional_suggestions if len(s.split(". ")) > 1)
                     st.session_state["generated_titles"] = st.session_state["generated_titles"].union(new_titles)
-                    st.write(f"**Additional References (APA):**")
+                   58                    st.write(f"**Additional References (APA):**")
                     for sug in additional_suggestions:
                         st.write(f"- {sug}")
 
