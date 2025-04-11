@@ -16,3 +16,4 @@ networkx
 nbformat
 huggingface_hub
 wordcloud
+sentencepiece
