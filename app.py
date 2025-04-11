@@ -984,44 +984,44 @@ else:
 
     # Paper to Podcast
         elif options == "🎙️ Paper to Podcast":
-        st.header("🎙️ Research Paper to Podcast Converter")
-        summarize = st.checkbox("Summarize the paper before conversion")
-        sentiment_adjustment = st.checkbox("Adjust voice tone based on sentiment")
-        min_duration = st.slider("Minimum podcast duration (minutes):", 1, 5, 2)
-        if st.button("Generate Podcast"):
-            with st.spinner("Processing text..."):
-                st.write("Step 1: Extracting text...")
-                text_to_convert = paper_text[:2000]
-                st.write(f"Text length: {len(text_to_convert)} characters")
-                if summarize:
-                    with st.spinner("Summarizing content..."):
-                        st.write("Step 2: Summarizing text...")
-                        text_to_convert = summarize_text(text_to_convert)
-                        if text_to_convert is None:
-                            st.error("Summarization failed.")
+            st.header("🎙️ Research Paper to Podcast Converter")
+            summarize = st.checkbox("Summarize the paper before conversion")
+            sentiment_adjustment = st.checkbox("Adjust voice tone based on sentiment")
+            min_duration = st.slider("Minimum podcast duration (minutes):", 1, 5, 2)
+            if st.button("Generate Podcast"):
+                with st.spinner("Processing text..."):
+                    st.write("Step 1: Extracting text...")
+                    text_to_convert = paper_text[:2000]
+                    st.write(f"Text length: {len(text_to_convert)} characters")
+                    if summarize:
+                        with st.spinner("Summarizing content..."):
+                            st.write("Step 2: Summarizing text...")
+                            text_to_convert = summarize_text(text_to_convert)
+                            if text_to_convert is None:
+                                st.error("Summarization failed.")
+                                st.stop()
+                            st.write(f"Summary length: {len(text_to_convert)} characters")
+                    min_words = min_duration * 150
+                    st.write(f"Step 3: Checking length (target {min_words} words)...")
+                    current_words = len(text_to_convert.split())
+                    if current_words < min_words:
+                        with st.spinner(f"Expanding content to {min_words} words..."):
+                            response = llm_groq.invoke(
+                                f"Expand this text to at least {min_words} words while maintaining its original meaning and adding relevant details: {text_to_convert}"
+                            )
+                            text_to_convert = response.content.strip()
+                            st.write(f"Expanded length: {len(text_to_convert.split())} words")
+                    st.write("Step 4: Enhancing text for podcast...")
+                    enhanced_text = enhance_podcast_text(text_to_convert)
+                    st.write(f"Final text length: {len(enhanced_text.split())} words")
+                    with st.spinner("Generating audio..."):
+                        st.write("Step 5: Converting to audio...")
+                        audio_buffer = text_to_speech_gtts(enhanced_text, sentiment_adjustment)
+                        if audio_buffer is None:
+                            st.error("Audio generation failed.")
                             st.stop()
-                        st.write(f"Summary length: {len(text_to_convert)} characters")
-                min_words = min_duration * 150
-                st.write(f"Step 3: Checking length (target {min_words} words)...")
-                current_words = len(text_to_convert.split())
-                if current_words < min_words:
-                    with st.spinner(f"Expanding content to {min_words} words..."):
-                        response = llm_groq.invoke(
-                            f"Expand this text to at least {min_words} words while maintaining its original meaning and adding relevant details: {text_to_convert}"
-                        )
-                        text_to_convert = response.content.strip()
-                        st.write(f"Expanded length: {len(text_to_convert.split())} words")
-                st.write("Step 4: Enhancing text for podcast...")
-                enhanced_text = enhance_podcast_text(text_to_convert)
-                st.write(f"Final text length: {len(enhanced_text.split())} words")
-                with st.spinner("Generating audio..."):
-                    st.write("Step 5: Converting to audio...")
-                    audio_buffer = text_to_speech_gtts(enhanced_text, sentiment_adjustment)
-                    if audio_buffer is None:
-                        st.error("Audio generation failed.")
-                        st.stop()
-                    st.success("Podcast generated!")
-                    st.audio(audio_buffer, format="audio/mp3")
+                        st.success("Podcast generated!")
+                        st.audio(audio_buffer, format="audio/mp3")
 
     # Dashboard
     elif options == "📈 Dashboard":
