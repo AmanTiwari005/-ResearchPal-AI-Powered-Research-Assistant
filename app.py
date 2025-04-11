@@ -784,7 +784,7 @@ else:
                 st.write("**Suggested References (APA):**")
                 for sug in initial_suggestions:
                     st.write(f"- {sug}")
-        
+
         if st.session_state.get("generated_titles"):
             num_more = st.number_input("Generate more references:", min_value=1, max_value=10, value=5)
             if st.button("Generate Additional References"):
