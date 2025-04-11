@@ -271,7 +271,8 @@ def cross_reference_citations(paper_text):
     if matches:
         return [f"Found citation: {match}" for match in matches[:5]]
     return ["No clear cross-references identified."]
-
+    
+# Podcast Converter Functions
 def chunk_text(text, max_chunk_length=512):
     words = text.split()
     for i in range(0, len(words), max_chunk_length):
@@ -299,28 +300,21 @@ def analyze_sentiment(text):
 
 def text_to_speech_gtts(text, sentiment_adjustment=False):
     try:
-        logger.info("Generating audio from text")
         if sentiment_adjustment:
             sentiment = analyze_sentiment(text)
             speech_rate = 'slow' if sentiment < 0 else 'normal'
         else:
             speech_rate = 'normal'
-        audio_buffers = []
-        for chunk in [text[i:i+5000] for i in range(0, len(text), 5000)]:
-            tts = gTTS(text=chunk, lang='en', slow=(speech_rate == 'slow'))
-            audio_buffer = BytesIO()
-            tts.write_to_fp(audio_buffer)
-            audio_buffer.seek(0)
-            audio_buffers.append(audio_buffer.read())
-        combined_buffer = BytesIO(b''.join(audio_buffers))
-        combined_buffer.seek(0)
-        logger.info("Audio generated successfully")
-        return combined_buffer
+        
+        # Generate audio in memory
+        tts = gTTS(text=text, lang='en', slow=(speech_rate == 'slow'))
+        audio_buffer = BytesIO()
+        tts.write_to_fp(audio_buffer)
+        audio_buffer.seek(0)
+        return audio_buffer
     except Exception as e:
-        logger.error(f"Audio generation failed: {e}")
         st.error(f"Error generating audio: {e}")
         return None
-
 def enhance_podcast_text(text):
     greeting = "Hello, dear listeners! Welcome to this special podcast where we dive into an exciting research paper. Let’s explore its key insights together."
     middle = "Now, let’s take a moment to appreciate the depth of this work as we move into more fascinating details."
@@ -985,42 +979,50 @@ else:
     # Paper to Podcast
     elif options == "🎙️ Paper to Podcast":
         st.header("🎙️ Research Paper to Podcast Converter")
+        st.write("Convert your research paper into an audio podcast!")
         summarize = st.checkbox("Summarize the paper before conversion")
         sentiment_adjustment = st.checkbox("Adjust voice tone based on sentiment")
-        min_duration = st.slider("Minimum podcast duration (minutes):", 1, 5, 2)
+        min_duration = st.slider("Minimum podcast duration (minutes):", 1, 5, 2)  # Reduced max to 5 for Streamlit Cloud
+        
         if st.button("Generate Podcast"):
             with st.spinner("Processing text..."):
                 st.write("Step 1: Extracting text...")
-                text_to_convert = paper_text[:2000]
+                text_to_convert = paper_text[:2000]  # Limit to 2000 chars to avoid resource issues
                 st.write(f"Text length: {len(text_to_convert)} characters")
+
                 if summarize:
                     with st.spinner("Summarizing content..."):
                         st.write("Step 2: Summarizing text...")
                         text_to_convert = summarize_text(text_to_convert)
                         if text_to_convert is None:
-                            st.error("Summarization failed.")
+                            st.error("Summarization failed. Check Grok API or text content.")
                             st.stop()
                         st.write(f"Summary length: {len(text_to_convert)} characters")
-                min_words = min_duration * 150
+
+                # Ensure minimum length (approx 120 words/minute)
+                min_words = min_duration * 120
                 st.write(f"Step 3: Checking length (target {min_words} words)...")
-                current_words = len(text_to_convert.split())
-                if current_words < min_words:
-                    with st.spinner(f"Expanding content to {min_words} words..."):
+                if len(text_to_convert.split()) < min_words:
+                    with st.spinner("Expanding content..."):
                         response = llm_groq.invoke(
-                            f"Expand this text to at least {min_words} words while maintaining its original meaning and adding relevant details: {text_to_convert}"
+                            f"Expand this text to at least {min_words} words while keeping its meaning: {text_to_convert}"
                         )
                         text_to_convert = response.content.strip()
                         st.write(f"Expanded length: {len(text_to_convert.split())} words")
-                st.write("Step 4: Enhancing text for podcast...")
+
+                # Add polite expressions
+                st.write("Step 4: Enhancing text with greetings...")
                 enhanced_text = enhance_podcast_text(text_to_convert)
                 st.write(f"Final text length: {len(enhanced_text.split())} words")
-                with st.spinner("Generating audio..."):
+
+                # Generate audio
+                with st.spinner("Generating podcast audio..."):
                     st.write("Step 5: Converting to audio...")
-                    audio_buffer = text_to_speech_gtts(enhanced_text, sentiment_adjustment)
+                    audio_buffer = text_to_speech_gtts(enhanced_text, sentiment_adjustment=sentiment_adjustment)
                     if audio_buffer is None:
-                        st.error("Audio generation failed.")
+                        st.error("Audio generation failed. Check gTTS or text length.")
                         st.stop()
-                    st.success("Podcast generated!")
+                    st.success("Podcast generated successfully!")
                     st.audio(audio_buffer, format="audio/mp3")
         
 
